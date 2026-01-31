@@ -18,6 +18,9 @@ vault_test/
 
 # Data
 data/
+!data/
+!data/current.csv
+!data/previous_shadow.csv
 # Test fixtures remain tracked
 !tests/data/
 
