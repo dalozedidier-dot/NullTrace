@@ -1,0 +1,19 @@
+repository:
+  name: NullTrace
+  description: Outil 'shadow diff': snapshots et comparaison robuste de datasets.
+  topics:
+    - python
+    - ci
+    - dd
+    - diff
+    - snapshot
+    - observability
+has_issues: true
+has_projects: false
+has_wiki: false
+has_discussions: false
+delete_branch_on_merge: true
+allow_squash_merge: true
+allow_merge_commit: false
+allow_rebase_merge: false
+default_branch: main
