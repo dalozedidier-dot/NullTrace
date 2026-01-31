@@ -1,0 +1,54 @@
+name: cleanup-readme-badges
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Remove apply-repo-settings badge lines from README
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f README.md ]; then
+            echo "README.md not found; nothing to do."
+            exit 0
+          fi
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("README.md")
+          txt = p.read_text(encoding="utf-8", errors="replace").splitlines(True)
+          out = []
+          removed = 0
+          for line in txt:
+            if "apply-repo-settings.yml/badge.svg" in line or "/actions/workflows/apply-repo-settings.yml" in line:
+              removed += 1
+              continue
+            out.append(line)
+          if removed:
+            p.write_text("".join(out), encoding="utf-8")
+            print(f"Removed {removed} line(s) from README.md")
+          else:
+            print("No matching badge lines found in README.md")
+          PY
+
+      - name: Commit and push if changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "chore: remove apply-repo-settings badge"
+          git push
