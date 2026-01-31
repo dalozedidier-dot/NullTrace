@@ -1,6 +1,6 @@
 repository:
   name: NullTrace
-  description: Outil 'shadow diff': snapshots et comparaison robuste de datasets.
+  description: "Outil 'shadow diff': snapshots et comparaison robuste de datasets."
   topics:
     - python
     - ci

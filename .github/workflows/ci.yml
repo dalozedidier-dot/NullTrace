@@ -22,5 +22,7 @@ jobs:
           if [ -f requirements.txt ] && [ -s requirements.txt ]; then pip install -r requirements.txt; fi
           pip install -r requirements-dev.txt
       - name: Run tests
+        env:
+          PYTHONPATH: src
         run: |
           pytest -q
