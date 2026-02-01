@@ -1,0 +1,214 @@
+name: mass-nulltrace
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Nombre d'itérations (ex 200)"
+        required: false
+        default: "200"
+      n:
+        description: "Nombre de lignes par CSV"
+        required: false
+        default: "500"
+      seed_base:
+        description: "Base seed (seed = seed_base + i)"
+        required: false
+        default: "4000"
+      cols:
+        description: "Nombre de colonnes numériques"
+        required: false
+        default: "3"
+      noise:
+        description: "Amplitude du bruit ajouté au current"
+        required: false
+        default: "0.01"
+      keep_outputs:
+        description: "Conserver toutes les sorties par run (true/false)"
+        required: false
+        default: "false"
+
+concurrency:
+  group: nulltrace-mass-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mass:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Ensure .github/constraints.txt exists (generated if missing)
+        run: |
+          set -euo pipefail
+          if [ -f .github/constraints.txt ]; then
+            echo ".github/constraints.txt present"
+            exit 0
+          fi
+          mkdir -p .github
+          cat > .github/constraints.txt << 'EOF'
+          numpy==1.26.4
+          pandas==2.2.2
+          scipy==1.13.1
+          jsonschema==4.23.0
+          pytest==8.3.3
+          python-dateutil==2.9.0.post0
+          pytz==2024.1
+          tzdata==2024.1
+          six==1.17.0
+          packaging==24.1
+          typing-extensions==4.12.2
+          EOF
+          sed -n '1,200p' .github/constraints.txt
+
+      - name: Install deps (pinned via .github/constraints.txt)
+        run: |
+          set -euo pipefail
+          python -m pip install -U pip
+          if [ -f requirements.txt ] && [ -s requirements.txt ]; then
+            pip install -r requirements.txt -c .github/constraints.txt
+          fi
+          if [ -f requirements-dev.txt ] && [ -s requirements-dev.txt ]; then
+            pip install -r requirements-dev.txt -c .github/constraints.txt
+          fi
+          pip install -e . --no-deps
+
+      - name: Mass snapshots + diffs
+        env:
+          RUNS: ${{ github.event.inputs.runs }}
+          N: ${{ github.event.inputs.n }}
+          SEED_BASE: ${{ github.event.inputs.seed_base }}
+          COLS: ${{ github.event.inputs.cols }}
+          NOISE: ${{ github.event.inputs.noise }}
+          KEEP: ${{ github.event.inputs.keep_outputs }}
+        run: |
+          set -euo pipefail
+          mkdir -p _ci_out/mass
+          python - << 'PY'
+          import json, os, subprocess, statistics, shutil
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+
+          runs = int(os.environ["RUNS"])
+          n = int(os.environ["N"])
+          seed_base = int(os.environ["SEED_BASE"])
+          cols = int(os.environ["COLS"])
+          noise = float(os.environ["NOISE"])
+          keep = (os.environ.get("KEEP","false").strip().lower() == "true")
+
+          out_root = Path("_ci_out/mass")
+          out_root.mkdir(parents=True, exist_ok=True)
+
+          def run_cmd(cmd):
+            p = subprocess.run(cmd, capture_output=True, text=True)
+            if p.returncode != 0:
+              raise RuntimeError("cmd_failed\ncmd=%s\nstdout=\n%s\nstderr=\n%s" % (" ".join(cmd), p.stdout, p.stderr))
+
+          def latest_manifest(shadows: Path) -> Path:
+            cands = sorted(shadows.glob("*/manifest.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if not cands:
+              raise FileNotFoundError(f"no manifest.json under {shadows}")
+            return cands[0]
+
+          def latest_diff(shadows: Path) -> Path | None:
+            cands = sorted(shadows.glob("*/shadow_diff.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            return cands[0] if cands else None
+
+          def extract_abs_deltas(diff_path: Path):
+            obj = json.loads(diff_path.read_text(encoding="utf-8"))
+            diff = (obj.get("diff") or {})
+            col_changes = (diff.get("column_changes") or {})
+            vals = []
+            for _, ch in col_changes.items():
+              deltas = ((ch or {}).get("deltas") or {})
+              for _, v in deltas.items():
+                try:
+                  vals.append(abs(float(v)))
+                except Exception:
+                  pass
+            return vals
+
+          rows = []
+          for i in range(1, runs + 1):
+            seed = seed_base + i
+            rng = np.random.default_rng(seed)
+
+            t = np.arange(n, dtype=float)
+            data = {"t": t}
+            for c in range(cols):
+              data[f"c{c+1}"] = rng.normal(0.0, 1.0, size=n)
+
+            prev = pd.DataFrame(data)
+            curr = prev.copy()
+            for c in range(cols):
+              curr[f"c{c+1}"] = curr[f"c{c+1}"] + rng.normal(0.0, noise, size=n)
+
+            run_dir = out_root / f"run_{i:04d}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+
+            prev_csv = run_dir / "previous.csv"
+            curr_csv = run_dir / "current.csv"
+            prev.to_csv(prev_csv, index=False)
+            curr.to_csv(curr_csv, index=False)
+
+            prev_out = run_dir / "prev_out"
+            curr_out = run_dir / "curr_out"
+            prev_out.mkdir(parents=True, exist_ok=True)
+            curr_out.mkdir(parents=True, exist_ok=True)
+
+            run_cmd(["python", "-m", "nulltrace", "snapshot", str(prev_csv), "--output-dir", str(prev_out)])
+            prev_manifest = latest_manifest(prev_out / "shadows")
+
+            run_cmd(["python", "-m", "nulltrace", "snapshot", str(curr_csv), "--previous-shadow", str(prev_manifest), "--output-dir", str(curr_out)])
+            diff_path = latest_diff(curr_out / "shadows")
+            absd = extract_abs_deltas(diff_path) if diff_path else []
+            absd_sorted = sorted(absd)
+
+            def q(p):
+              if not absd_sorted:
+                return 0.0
+              idx = int(round((len(absd_sorted) - 1) * p))
+              return float(absd_sorted[idx])
+
+            rows.append({
+              "run": i,
+              "seed": seed,
+              "n": n,
+              "cols": cols,
+              "noise": noise,
+              "n_deltas": len(absd_sorted),
+              "p50_abs_delta": float(statistics.median(absd_sorted)) if absd_sorted else 0.0,
+              "p90_abs_delta": q(0.90),
+              "p99_abs_delta": q(0.99),
+            })
+
+            if not keep:
+              # réduire la taille: garder uniquement le diff le plus récent et effacer le reste des outputs
+              if diff_path:
+                keep_dir = run_dir / "diff_keep"
+                keep_dir.mkdir(parents=True, exist_ok=True)
+                (keep_dir / "shadow_diff.json").write_text(diff_path.read_text(encoding="utf-8"), encoding="utf-8")
+              shutil.rmtree(prev_out, ignore_errors=True)
+              shutil.rmtree(curr_out, ignore_errors=True)
+
+          df_out = pd.DataFrame(rows)
+          df_out.to_csv(out_root / "summary.csv", index=False)
+          (out_root / "summary.json").write_text(df_out.to_json(orient="records", indent=2), encoding="utf-8")
+          print("wrote", (out_root / "summary.csv").resolve())
+          PY
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nulltrace-mass
+          path: _ci_out/mass/**
