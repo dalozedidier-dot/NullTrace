@@ -73,13 +73,22 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -U pip
+
+          C="-c .github/constraints.txt"
           if [ -f requirements.txt ] && [ -s requirements.txt ]; then
-            pip install -r requirements.txt -c .github/constraints.txt
+            python -m pip install -r requirements.txt $C
           fi
           if [ -f requirements-dev.txt ] && [ -s requirements-dev.txt ]; then
-            pip install -r requirements-dev.txt -c .github/constraints.txt
+            python -m pip install -r requirements-dev.txt $C
           fi
-          pip install -e . --no-deps
+
+          # Ces repos peuvent être des modules 'loose' (pas de pyproject/setup).
+          # Si packaging présent, on installe en editable; sinon on passera par PYTHONPATH.
+          if [ -f pyproject.toml ] || [ -f setup.py ]; then
+            python -m pip install -e . --no-deps
+          else
+            echo "No pyproject.toml/setup.py -> skip editable install (using PYTHONPATH)"
+          fi
 
       - name: Mass snapshots + diffs
         env:
@@ -91,6 +100,7 @@ jobs:
           KEEP: ${{ github.event.inputs.keep_outputs }}
         run: |
           set -euo pipefail
+          export PYTHONPATH="$PWD:$PWD/src:${PYTHONPATH:-}"
           mkdir -p _ci_out/mass
           python - << 'PY'
           import json, os, subprocess, statistics, shutil
