@@ -1,0 +1,49 @@
+name: black-autofix
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  black:
+    runs-on: ubuntu-latest
+
+    # Empêche une boucle : si le commit vient du bot, on ne relance pas ce job
+    if: github.actor != 'github-actions[bot]'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install black
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install black
+
+      - name: Run black (autofix)
+        run: black .
+
+      - name: Commit & push if changed
+        # On ne push que sur push (pas sur PR)
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: format (black)"
+          git push
