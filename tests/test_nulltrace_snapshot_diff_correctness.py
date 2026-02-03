@@ -25,7 +25,15 @@ def test_snapshot_diff_numeric_deltas_are_correct(tmp_path: Path) -> None:
     cur_out = tmp_path / "cur_out"
 
     subprocess.check_call(
-        [sys.executable, "-m", "nulltrace", "snapshot", str(prev_csv), "--output-dir", str(prev_out)]
+        [
+            sys.executable,
+            "-m",
+            "nulltrace",
+            "snapshot",
+            str(prev_csv),
+            "--output-dir",
+            str(prev_out),
+        ]
     )
     prev_manifest = list((prev_out / "shadows").glob("*/manifest.json"))[0]
 

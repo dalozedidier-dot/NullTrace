@@ -42,7 +42,9 @@ def _to_float(x: str) -> float | None:
         return None
 
 
-def _snapshot(csv_path: Path, output_dir: Path, previous_shadow_manifest: Path | None) -> Path:
+def _snapshot(
+    csv_path: Path, output_dir: Path, previous_shadow_manifest: Path | None
+) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     shadows_dir = output_dir / "shadows"
     shadows_dir.mkdir(parents=True, exist_ok=True)
@@ -70,7 +72,9 @@ def _snapshot(csv_path: Path, output_dir: Path, previous_shadow_manifest: Path |
     )
 
     if previous_shadow_manifest is not None:
-        prev_manifest_obj = json.loads(previous_shadow_manifest.read_text(encoding="utf-8"))
+        prev_manifest_obj = json.loads(
+            previous_shadow_manifest.read_text(encoding="utf-8")
+        )
         prev_shadow_dir = Path(previous_shadow_manifest).parent
         prev_csv_path = Path(prev_manifest_obj.get("source_csv", ""))
 
@@ -116,16 +120,32 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="nulltrace")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    snap = sub.add_parser("snapshot", help="Create a shadow snapshot (and diff if previous is provided).")
+    snap = sub.add_parser(
+        "snapshot", help="Create a shadow snapshot (and diff if previous is provided)."
+    )
     snap.add_argument("csv", type=str, help="Path to CSV input")
-    snap.add_argument("--output-dir", type=str, required=True, help="Directory where shadows/ will be written")
-    snap.add_argument("--previous-shadow", type=str, required=False, help="Path to previous manifest.json")
+    snap.add_argument(
+        "--output-dir",
+        type=str,
+        required=True,
+        help="Directory where shadows/ will be written",
+    )
+    snap.add_argument(
+        "--previous-shadow",
+        type=str,
+        required=False,
+        help="Path to previous manifest.json",
+    )
 
     args = parser.parse_args()
     if args.cmd == "snapshot":
         csv_path = Path(args.csv)
         out_dir = Path(args.output_dir)
-        prev = Path(args.previous_shadow) if getattr(args, "previous_shadow", None) else None
+        prev = (
+            Path(args.previous_shadow)
+            if getattr(args, "previous_shadow", None)
+            else None
+        )
         _snapshot(csv_path, out_dir, prev)
         return 0
 

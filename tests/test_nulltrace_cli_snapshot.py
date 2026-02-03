@@ -27,7 +27,15 @@ def test_nulltrace_snapshot_creates_manifest_and_diff(tmp_path: Path) -> None:
 
     # previous snapshot
     subprocess.check_call(
-        [sys.executable, "-m", "nulltrace", "snapshot", str(prev_csv), "--output-dir", str(prev_out)]
+        [
+            sys.executable,
+            "-m",
+            "nulltrace",
+            "snapshot",
+            str(prev_csv),
+            "--output-dir",
+            str(prev_out),
+        ]
     )
     manifests = list((prev_out / "shadows").glob("*/manifest.json"))
     assert manifests, "previous manifest not created"

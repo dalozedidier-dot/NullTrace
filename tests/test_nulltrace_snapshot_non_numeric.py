@@ -24,7 +24,17 @@ def test_snapshot_diff_ignores_non_numeric_cells(tmp_path: Path) -> None:
     prev_out = tmp_path / "prev_out"
     cur_out = tmp_path / "cur_out"
 
-    subprocess.check_call([sys.executable, "-m", "nulltrace", "snapshot", str(prev_csv), "--output-dir", str(prev_out)])
+    subprocess.check_call(
+        [
+            sys.executable,
+            "-m",
+            "nulltrace",
+            "snapshot",
+            str(prev_csv),
+            "--output-dir",
+            str(prev_out),
+        ]
+    )
     prev_manifest = list((prev_out / "shadows").glob("*/manifest.json"))[0]
 
     subprocess.check_call(

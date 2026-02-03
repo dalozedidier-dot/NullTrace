@@ -19,7 +19,15 @@ def test_snapshot_manifest_has_required_fields(tmp_path: Path) -> None:
 
     out_dir = tmp_path / "out"
     subprocess.check_call(
-        [sys.executable, "-m", "nulltrace", "snapshot", str(csv_path), "--output-dir", str(out_dir)]
+        [
+            sys.executable,
+            "-m",
+            "nulltrace",
+            "snapshot",
+            str(csv_path),
+            "--output-dir",
+            str(out_dir),
+        ]
     )
 
     manifests = list((out_dir / "shadows").glob("*/manifest.json"))
@@ -29,6 +37,9 @@ def test_snapshot_manifest_has_required_fields(tmp_path: Path) -> None:
     assert manifest["schema"] == "nulltrace.shadow.manifest.v1"
     assert "created_at_utc" in manifest
     assert manifest["source_csv"].endswith("input.csv")
-    assert isinstance(manifest["source_csv_sha256"], str) and len(manifest["source_csv_sha256"]) == 64
+    assert (
+        isinstance(manifest["source_csv_sha256"], str)
+        and len(manifest["source_csv_sha256"]) == 64
+    )
     assert manifest["n_rows"] == 3
     assert manifest["columns"] == ["x", "y"]
