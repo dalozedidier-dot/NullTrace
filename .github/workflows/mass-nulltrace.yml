@@ -1,0 +1,65 @@
+name: mass-nulltrace
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Number of runs"
+        required: true
+        default: "25"
+  schedule:
+    - cron: "0 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mass-nulltrace-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mass:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          set -euo pipefail
+          python -m pip install -U pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Prepare constraints
+        run: |
+          set -euo pipefail
+          mkdir -p .github
+          if [ ! -f .github/constraints.txt ]; then
+            printf "%s\n" "pandas>=2.2.2" "numpy>=1.26.4" > .github/constraints.txt
+          fi
+          echo "Constraints file:"
+          cat .github/constraints.txt
+
+      - name: Run mass soak
+        run: |
+          set -euo pipefail
+          mkdir -p _ci_out/mass
+          RUNS="${{ github.event.inputs.runs }}"
+          if [ -z "${RUNS}" ]; then RUNS="25"; fi
+          python -m tools.nulltrace_soak --runs "${RUNS}" --constraints .github/constraints.txt --out-dir _ci_out/mass
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mass-nulltrace-${{ github.run_id }}
+          path: _ci_out/mass
