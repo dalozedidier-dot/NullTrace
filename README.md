@@ -21,3 +21,7 @@ In GitHub Actions:
 
 - `ci` runs on Python 3.10/3.11/3.12
 - `mass-nulltrace` runs on schedule or manually and uploads `_ci_out/mass`
+
+## BareFlux integration
+
+BareFlux expects `python -m nulltrace snapshot ...` to exist. This repo provides a minimal CLI under `src/nulltrace`.
