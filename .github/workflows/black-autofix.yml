@@ -1,0 +1,40 @@
+name: black-autofix
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  black:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install black
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install black
+
+      - name: Format
+        run: black .
+
+      - name: Auto-commit (internal PR only)
+        if: github.event.pull_request.head.repo.fork == false
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: format (black)"
+          branch: ${{ github.head_ref }}
+
+      - name: Verify
+        run: black --check .
