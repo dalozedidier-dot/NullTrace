@@ -25,3 +25,7 @@ In GitHub Actions:
 ## BareFlux integration
 
 BareFlux expects `python -m nulltrace snapshot ...` to exist. This repo provides a minimal CLI under `src/nulltrace`.
+
+## Tests
+
+The test suite includes smoke tests for the soak modules and stronger coverage for the `nulltrace snapshot` CLI, including manifest fields and diff correctness.
